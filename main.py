@@ -1,94 +1,66 @@
-#https://medium.com/ensina-ai/redes-neurais-com-tensorflow-primeiros-passos-20847dd5d27f
-"""
-import tensorflow as tf
-from tensorflow.examples.tutorials.mnist import input_data
-
-mnist = input_data.read_data_sets("MNIST_data", one_hot=True)
-
-x = tf.placeholder(dtype=tf.float32, shape=[None, 784]) # Quantidade de entradas
-y = tf.placeholder(dtype=tf.float32, shape=[None, 10])  # Quantidade de neurônios
-
-w = tf.Variable(tf.random_normal(shape=[784, 10], stddev=0.1))
-b = tf.Variable(tf.constant(0.1, shape=[10]))
-"""
-
 import numpy as np
-import tensorflow as tf
+import matplotlib.pyplot as plt
+import pandas as pd
 
-# Carregar os dados do arquivo
-data = np.loadtxt('data_tp1', delimiter=',')
+# Leitura dos dados de treinamento do arquivo
+data = pd.read_csv('data_tp1')
+input_data = data.iloc[:, :-1].values
+target_data = data.iloc[:, -1:].values
 
-# Separar os dados de entrada (features) e os rótulos (targets)
-features = data[:, :-1]
-targets = data[:, -1]
+# Parâmetros da rede neural
+input_size = input_data.shape[1]  # Tamanho da camada de entrada
+hidden_size = 4                  # Tamanho da camada oculta
+output_size = target_data.shape[1]  # Tamanho da camada de saída
+learning_rate = 0.25
+epochs = 10000
 
-# Definir os parâmetros da rede neural
-num_input = features.shape[1]  # Número de atributos de entrada
-num_hidden = 10  # Número de neurônios na camada oculta
-num_output = 1  # Número de neurônios na camada de saída
+# Função de ativação sigmoide
+def sigmoid(x):
+    return 1 / (1 + np.exp(-x))
 
-# Definir os placeholders para os dados de entrada e os rótulos
-X = tf.placeholder(tf.float32, [None, num_input])
-Y = tf.placeholder(tf.float32, [None, num_output])
+# Derivada da função de ativação sigmoide
+def sigmoid_derivative(x):
+    return sigmoid(x) * (1 - sigmoid(x))
 
-# Definir as variáveis para os pesos e os bias da rede neural
-weights = {
-    'hidden': tf.Variable(tf.random_normal([num_input, num_hidden])),
-    'output': tf.Variable(tf.random_normal([num_hidden, num_output]))
-}
-biases = {
-    'hidden': tf.Variable(tf.random_normal([num_hidden])),
-    'output': tf.Variable(tf.random_normal([num_output]))
-}
+# Inicialização dos pesos e viés
+weights_hidden = np.random.randn(input_size, hidden_size)
+biases_hidden = np.zeros((1, hidden_size))
+weights_output = np.random.randn(hidden_size, output_size)
+biases_output = np.zeros((1, output_size))
 
-# Construir o modelo da rede neural
-hidden_layer = tf.add(tf.matmul(X, weights['hidden']), biases['hidden'])
-hidden_layer = tf.nn.relu(hidden_layer)
-output_layer = tf.add(tf.matmul(hidden_layer, weights['output']), biases['output'])
+# Treinamento da rede neural
+loss_history = []
+for epoch in range(epochs):
+    # Forward pass
+    hidden_layer_input = np.dot(input_data, weights_hidden) + biases_hidden
+    hidden_layer_output = sigmoid(hidden_layer_input)
+    output_layer_input = np.dot(hidden_layer_output, weights_output) + biases_output
+    output_layer_output = sigmoid(output_layer_input)
+    
+    # Cálculo do erro
+    error = target_data - output_layer_output
+    loss = np.mean(np.square(error))
+    loss_history.append(loss)
+    
+    # Backward pass
+    d_output = error * sigmoid_derivative(output_layer_input)
+    d_hidden = np.dot(d_output, weights_output.T) * sigmoid_derivative(hidden_layer_input)
+    
+    # Atualização dos pesos e viés
+    weights_output += learning_rate * np.dot(hidden_layer_output.T, d_output)
+    biases_output += learning_rate * np.sum(d_output, axis=0, keepdims=True)
+    weights_hidden += learning_rate * np.dot(input_data.T, d_hidden)
+    biases_hidden += learning_rate * np.sum(d_hidden, axis=0, keepdims=True)
 
-# Definir a função de perda e o otimizador
-loss = tf.reduce_mean(tf.square(output_layer - Y))
-optimizer = tf.train.GradientDescentOptimizer(learning_rate=0.01)
-train_op = optimizer.minimize(loss)
+# Plotando a curva de aprendizado
+plt.plot(loss_history)
+plt.xlabel('Epoch')
+plt.ylabel('Loss')
+plt.title('Training Loss')
+plt.show()
 
-# Inicializar as variáveis globais
-init = tf.global_variables_initializer()
-
-# Definir o número de épocas e o tamanho do lote (batch size)
-num_epochs = 1000
-batch_size = 32
-
-# Iniciar a sessão do TensorFlow
-with tf.Session() as sess:
-    sess.run(init)
-
-    # Treinar a rede neural
-    for epoch in range(num_epochs):
-        # Embaralhar os dados de treinamento
-        indices = np.random.permutation(len(features))
-        features_shuffled = features[indices]
-        targets_shuffled = targets[indices]
-
-        # Dividir os dados em lotes (batches)
-        num_batches = len(features) // batch_size
-        for i in range(num_batches):
-            start = i * batch_size
-            end = (i + 1) * batch_size
-            batch_x = features_shuffled[start:end]
-            batch_y = targets_shuffled[start:end]
-
-            # Executar o passo de treinamento (forward pass e backpropagation)
-            sess.run(train_op, feed_dict={X: batch_x, Y: batch_y})
-
-        # Calcular a perda média da época atual
-        avg_loss = sess.run(loss, feed_dict={X: features, Y: targets})
-        print("Época:", epoch+1, "Perda média:", avg_loss)
-
-    # Realizar previsões após o treinamento
-    predictions = sess.run(output_layer, feed_dict={X: features})
-
-    # Imprimir as previsões
-    print("Previsões:")
-    print(predictions)
-
-
+# Previsões finais
+hidden_layer_output = sigmoid(np.dot(input_data, weights_hidden) + biases_hidden)
+predictions = sigmoid(np.dot(hidden_layer_output, weights_output) + biases_output)
+print('Previsões finais:')
+print(predictions)
