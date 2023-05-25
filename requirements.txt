@@ -1,0 +1,4 @@
+tensorflow
+cupy
+numpy
+matplotlib
